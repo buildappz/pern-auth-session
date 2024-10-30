@@ -1,41 +1,104 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+/**
+ * Main application file
+ * Configures and initializes Express application with all middleware and routes
+ */
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
+// -------------------------------
+// Environment & Module Imports
+// -------------------------------
+require('dotenv').config();
+const createError = require('http-errors');
+const express = require('express');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const logger = require('morgan');
+const session = require('express-session');
 
-var app = express();
+// -------------------------------
+// Configuration Imports
+// -------------------------------
+const sessionConfig = require('./config/session');
+const sequelize = require('./config/database');
 
-// view engine setup
+// -------------------------------
+// Route Imports
+// -------------------------------
+const indexRouter = require('./routes/index');
+const usersRouter = require('./routes/users');
+const authRouter = require('./routes/auth');
+
+// -------------------------------
+// Express Instance
+// -------------------------------
+const app = express();
+
+// -------------------------------
+// Database Initialization
+// -------------------------------
+sequelize.sync()
+  .then(() => {
+    console.log('✅ Database synchronized successfully');
+  })
+  .catch(err => {
+    console.error('❌ Database synchronization error:', err);
+    process.exit(1); // Exit if database connection fails
+  });
+
+// -------------------------------
+// View Engine Configuration
+// -------------------------------
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
 
+// -------------------------------
+// Global Middleware Setup
+// -------------------------------
+// Request logging
 app.use(logger('dev'));
+
+// Request parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+
+// Static file serving
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Session handling
+app.use(session(sessionConfig));
+
+// -------------------------------
+// Route Registration
+// -------------------------------
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
+app.use('/auth', authRouter);
 
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
+// -------------------------------
+// Error Handling
+// -------------------------------
+// 404 Handler
+app.use((req, res, next) => {
   next(createError(404));
 });
 
-// error handler
-app.use(function(err, req, res, next) {
-  // set locals, only providing error in development
+// Global Error Handler
+app.use((err, req, res, next) => {
+  // Set locals for error page
   res.locals.message = err.message;
   res.locals.error = req.app.get('env') === 'development' ? err : {};
+  
+  // Log errors in development
+  if (req.app.get('env') === 'development') {
+    console.error('❌ Error:', err);
+  }
 
-  // render the error page
+  // Send error response
   res.status(err.status || 500);
   res.render('error');
 });
 
+// -------------------------------
+// Export Application
+// -------------------------------
 module.exports = app;
